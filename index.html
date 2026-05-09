@@ -54,6 +54,8 @@
       from { opacity: 0; transform: translateY(15px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    /* Animasi iframe yang elegan saat video dimuat */
+    #videoFrame { transition: opacity 0.8s ease-in-out; }
   </style>
 </head>
 <body class="items-center justify-center p-4">
@@ -97,9 +99,19 @@
         </div>
       </div>
 
-      <!-- AREA EMBED VIDEO -->
+      <!-- AREA EMBED VIDEO DENGAN MOCKUP TAMPILAN -->
       <div id="videoContainer" class="hidden mb-7 relative z-10 w-full rounded-2xl overflow-hidden shadow-lg border border-gray-100/50 bg-gray-900 aspect-video fade-in">
-        <iframe id="videoFrame" src="" class="w-full h-full border-0 absolute inset-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        
+        <!-- Skeleton / Background Pemuatan Video (Akan tertutup saat video selesai dimuat) -->
+        <div class="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 z-0">
+          <svg class="w-10 h-10 mb-2 text-gray-600 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+          </svg>
+          <p class="text-[10px] text-gray-400 font-semibold tracking-widest uppercase">Memuat Pemutar Video</p>
+        </div>
+
+        <!-- Iframe Video Asli (Awalnya transparan/opacity-0, lalu perlahan muncul saat onload) -->
+        <iframe id="videoFrame" src="" class="w-full h-full border-0 relative z-10 opacity-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen onload="this.classList.remove('opacity-0')"></iframe>
       </div>
 
       <!-- Form Pencarian -->
@@ -121,7 +133,7 @@
       <!-- Area Loading -->
       <div id="loadingArea" class="hidden mt-6 text-center py-4">
         <div class="w-10 h-10 border-4 border-gray-100 border-t-yellow-500 rounded-full animate-spin mx-auto shadow-sm"></div>
-        <p class="text-xs font-semibold text-gray-500 mt-4 animate-pulse tracking-wide">Sinkronisasi Server REST...</p>
+        <p class="text-xs font-semibold text-gray-500 mt-4 animate-pulse tracking-wide">Mencocokkan data ke sistem...</p>
       </div>
 
       <!-- Area Hasil -->
@@ -190,32 +202,39 @@
     // =========================================================
     // KONFIGURASI API (WAJIB DIISI SEBELUM DEPLOY KE GITHUB)
     // =========================================================
-    const API_URL = "https://script.google.com/macros/s/AKfycby9GxhsrAY2MfQfFLy-MZQuhJCJe9QWHnKvt7SNKda1sQVw_W36T02yVfja97rpnvzp/exec";
-    // Contoh: const API_URL = "https://script.google.com/macros/s/AKfyc.../exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbxYO6v8FAsVcIOt9PuQl8jjWLdLGV7keGMkfrvo4E34Z8YYjXjm2HTK3uw4zsRxNQzX/exec";
 
     const CACHE_KEY = 'guest_ticket_id_cache';
     const defaultBtnHtml = '<span>Temukan Undangan Saya</span><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>';
 
     document.addEventListener("DOMContentLoaded", async function() {
-      // Setup Form
+      // Setup Form Submission
       document.getElementById('searchFormArea').addEventListener('submit', function(event) {
         event.preventDefault();
         performSearch(document.getElementById('searchInput').value);
       });
 
-      // 1. Fetch Data Konfigurasi Saat Halaman Dimuat
       try {
         let initData;
+        
+        // Mode Simulasi jika URL API belum diatur (Agar mockup di pratinjau Editor berfungsi)
         if(API_URL.includes("ISI_DENGAN_URL")) {
-          console.warn("Mode Simulasi Aktif: API URL belum diatur.");
-          initData = { success: true, agendaName: "Mode Simulasi (Demo)", eventDateTime: "2026-06-15 08:00" };
+          console.warn("Mode Simulasi Aktif: Menggunakan Data Mockup.");
+          initData = { 
+            success: true, 
+            agendaName: "Mode Simulasi (Demo)", 
+            eventDateTime: "2026-06-15 08:00",
+            // Mockup Video YouTube Resmi agar tampil bagus di Immersive View
+            videoUrl: "https://www.youtube.com/watch?v=LXb3EKWsInQ" 
+          };
         } else {
+          // Mode Produksi (Mengambil data dari Google Sheets)
           const response = await fetch(`${API_URL}?action=getInitData`);
           initData = await response.json();
         }
 
         if (initData.success) {
-          document.getElementById('agendaNameDisplay').innerText = initData.agendaName || "Sistem Antrean";
+          document.getElementById('agendaNameDisplay').innerText = initData.agendaName || "Sistem Registrasi Acara";
           document.getElementById('agendaNameDisplay').classList.remove('animate-pulse');
           
           if (initData.logoUrl) {
@@ -233,27 +252,39 @@
             const videoContainer = document.getElementById('videoContainer');
             const videoFrame = document.getElementById('videoFrame');
             
-            // Smart URL Parser: Otomatis mengubah link YouTube biasa menjadi format Embed
+            // Logika Smart Parser: Otomatis mengamankan link YouTube / Google Drive agar bisa masuk Iframe
             let finalVideoUrl = initData.videoUrl;
+            
+            // 1. YouTube Biasa
             if (finalVideoUrl.includes('youtube.com/watch?v=')) {
               finalVideoUrl = finalVideoUrl.replace('watch?v=', 'embed/');
-              // Bersihkan parameter tambahan seperti &list= atau &t=
-              finalVideoUrl = finalVideoUrl.split('&')[0]; 
-            } else if (finalVideoUrl.includes('youtu.be/')) {
+              finalVideoUrl = finalVideoUrl.split('&')[0]; // Buang parameter extra
+            } 
+            // 2. YouTube Shorts / Share Link
+            else if (finalVideoUrl.includes('youtu.be/')) {
               finalVideoUrl = finalVideoUrl.replace('youtu.be/', 'youtube.com/embed/');
               finalVideoUrl = finalVideoUrl.split('?')[0]; 
+            }
+            // 3. Google Drive View Link
+            else if (finalVideoUrl.includes('drive.google.com') && finalVideoUrl.includes('/view')) {
+              finalVideoUrl = finalVideoUrl.replace('/view', '/preview');
+            }
+            
+            // Mute video autoplay (standar modern browser)
+            if(finalVideoUrl.includes('youtube.com/embed/')) {
+               finalVideoUrl += "?autoplay=1&mute=1&loop=1";
             }
             
             videoFrame.src = finalVideoUrl;
             videoContainer.classList.remove('hidden');
           }
 
-          // Aktifkan Tombol
+          // Aktifkan Tombol Pencarian
           const btn = document.getElementById('btnSearch');
           btn.disabled = false;
           btn.innerHTML = defaultBtnHtml;
 
-          // Cek Cache
+          // Cek Cache untuk riwayat pencarian
           const savedQuery = localStorage.getItem(CACHE_KEY);
           if (savedQuery) {
             document.getElementById('searchInput').value = savedQuery;
@@ -268,7 +299,6 @@
       }
     });
 
-    // FUNGSI COUNTDOWN TIMER
     function initCountdown(targetDateStr) {
       const safeDateStr = targetDateStr.replace(/-/g, '/');
       const targetDate = new Date(safeDateStr).getTime();
@@ -314,7 +344,6 @@
       }
     }
 
-    // FUNGSI PENCARIAN (MENGGUNAKAN FETCH API)
     async function performSearch(queryText, isAutoLoad = false) {
       const query = queryText ? queryText.trim() : "";
       if (!query) return;
@@ -348,7 +377,7 @@
               document.getElementById('downloadLink').href = "#";
               document.getElementById('pdfPreviewContainer').classList.add('hidden');
               document.getElementById('qrCodeContainer').classList.add('hidden'); 
-              document.getElementById('searchFormArea').classList.add('hidden'); 
+              formArea.classList.add('hidden'); 
               successBlock.classList.remove('hidden');
               localStorage.setItem(CACHE_KEY, "demo"); 
             } else {
